@@ -1,0 +1,21 @@
+data_params:
+  data_file: "./process_data_annotation/data/taco_train_sampled.json"
+  output_dir: "./process_data_annotation/outputs"
+  logs_dir: "./process_data_annotation/logs"
+
+model_params:
+  model_type: "openai"
+  model_name: "gpt-4o-mini"
+  
+  temperature: 1.0
+  max_tokens: 8192
+  max_completion_tokens: 4096
+
+search_algorithm_params:
+    c_puct: 0.25
+    alpha: 0.5
+    beta: 0.9 
+    length_scale: 500
+    num_rollouts: 16
+    max_search_count: 32
+    rollout_budget: 200

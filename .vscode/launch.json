@@ -1,0 +1,43 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "debug omegaprm",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "--config_file", "/root/autodl-tmp/projects/codeprm/process_data_annotation/configs/run_config.yaml"
+            ]
+        },
+        {
+            "name": "train_prm",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "--model_path",
+                "/root/autodl-tmp/projects/models/Qwen2.5-Coder-7B-Instruct",
+                "--data_path",
+                "/root/autodl-tmp/projects/codeprm/train_prm/train_raw/prm_raw_data.json"
+            ]
+        },
+        {
+            "name": "Python 调试程序: 包含参数的当前文件",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "to_prm_train_format",
+                "--data_path",
+                "/root/autodl-tmp/projects/codeprm/train_prm/data/collected_process_annotation_steps_data.json"
+            ]
+        }
+    ]
+}
