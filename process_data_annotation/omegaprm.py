@@ -80,7 +80,7 @@ class CodeOmegaPRM:
         logger = CustomLogger.get_logger()
         logger.info(f"Running OmegaPRM for question: {problem}\n")
         # Initialization
-        initial_state = State(solution_prefix='', parent=None)
+        initial_state = State(solution_prefix='### Solution\n', parent=None)
         initial_state.set_given_problem(problem)
 
         self.code_test_cases = test_cases
@@ -166,15 +166,15 @@ class CodeOmegaPRM:
 
         logger.debug('*** Solution prefix for rollout ***')
         logger.info(state.solution_prefix)
-        k_rollout_solutions = asyncio.run(rollout_on_state(
+        k_rollout_solutions = rollout_on_state(
             llm=self.LM,
             rollout_num=self.k,
             prompt=prompt_prepare(state),
             prefix=state.solution_prefix
-        ))
+        )
         logger.debug('*** One of rollout solutions ***')
         logger.info(k_rollout_solutions[0])
-
+        breakpoint()
         self.total_rollouts += self.k
         
         # Handle cases where subsequent rollouts may duplicate content from the current state's solution_prefix

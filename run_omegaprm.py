@@ -11,7 +11,9 @@ from typing import (
 from tqdm import tqdm
 from argparse import ArgumentParser
 from process_data_annotation.omegaprm import CodeOmegaPRM
-from process_data_annotation.llm_services import BaseLLM, GenerationConfig, LLMFactory
+from process_data_annotation.llm_services import (
+    BaseLLM, GenerationConfig, LLMFactory, vLLMConfig
+)
 from process_data_annotation.structure import State
 from process_data_annotation.logger_config import CustomLogger
 from process_data_annotation.hparams import (
@@ -38,24 +40,24 @@ def load_run_examples(from_path: str):
 
 def should_further_process(LM: BaseLLM, problem: Dict[str, Union[str, Dict]]) -> bool:
     question, test_cases = problem['question'], problem['test_cases']
-    temp_state = State(solution_prefix='')
+    temp_state = State(solution_prefix='### Solution')
     temp_state.given_problem = question
-    code_solutions = asyncio.run(rollout_on_state(
+    code_solutions = rollout_on_state(
         LM,
         rollout_num=32,
         prompt=prompt_prepare(temp_state),
         prefix=temp_state.solution_prefix
-    ))
+    )
     global logger
     # with open('./process_data_annotation/data/code_solutions_examples.json', 'r', encoding='utf-8') as f:
         # f.write(json.dumps(code_solutions, indent=4, ensure_ascii=False))
         # code_solutions = json.load(f)
     code_generations, extended_test_cases = postprocess_solutions_and_cases(code_solutions, test_cases)
-    generation_w_status = eval_generations_parallel(code_generations, extended_test_cases, debug=True, n_cases=100)
+    generation_w_status = eval_generations_parallel(code_generations, extended_test_cases, debug=False, n_cases=100)
     has_passed, has_failed = any(int(res) == 1 for res in generation_w_status.values()), any(int(res) == 0 for res in generation_w_status.values())
     init_test_pass_rate = sum(int(res) == 1 for res in generation_w_status.values()) / len(generation_w_status)
     logger.info(f'Initial test pass rate: {init_test_pass_rate}')
-    import pdb; pdb.set_trace()
+
     return has_passed and has_failed
 
 def save_collected_data(collected_data: Dict, index: int, output_dir: str):
@@ -68,6 +70,7 @@ def save_collected_data(collected_data: Dict, index: int, output_dir: str):
 
 
 def exist_problem_count(data_params: DataParams) -> int:
+    os.makedirs(data_params.output_dir, exist_ok=True)
     existing_files = os.listdir(data_params.output_dir)
     existing_indices = []
     for filename in existing_files:
@@ -82,6 +85,22 @@ def exist_problem_count(data_params: DataParams) -> int:
     return starting_idx
 
 
+def create_generation_config(model_params: ModelParams) -> GenerationConfig:
+    vllm_config = None
+    if model_params.model_type.lower() == 'vllm':
+        if not model_params.vllm_config:
+            raise ValueError('VLLM config is required for VLLM model type')
+        vllm_config = vLLMConfig(**model_params.vllm_config)
+        
+    return GenerationConfig(
+        temperature=model_params.temperature,
+        max_completion_tokens=model_params.max_completion_tokens,
+        max_tokens=model_params.max_tokens,
+        is_chat=model_params.is_chat,
+        vllm_config=vllm_config
+    )
+
+
 def run_exp(args):
     with open(args.config_file, 'r') as f:
         run_config = yaml.safe_load(f)
@@ -92,10 +111,7 @@ def run_exp(args):
     print(data_params, model_params, search_algorithm_params, sep='\n')
     run_examples = load_run_examples(data_params.data_file)
 
-    generation_config = GenerationConfig(
-        temperature=model_params.temperature,
-        max_completion_tokens=model_params.max_completion_tokens
-    )
+    generation_config = create_generation_config(model_params)
 
     llm: BaseLLM = LLMFactory.create(
         model_type=model_params.model_type,

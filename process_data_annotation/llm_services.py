@@ -78,11 +78,9 @@ class BaseLLM(ABC):
     def __init__(
             self, 
             model_name: str, 
-            generation_config: GenerationConfig, 
-            vllm_config: Optional[vLLMConfig] = None):
+            generation_config: GenerationConfig):
         self.model_name = model_name
         self.generation_config = generation_config
-        self.vllm_config = vllm_config
         self.model = None
         self.max_parallel_num = None
         self._initialize()
@@ -107,7 +105,7 @@ class BaseLLM(ABC):
         prefix: Optional[Union[str, List[str]]] = None, 
     ) -> Union[str, Awaitable[str]]:
 
-        if self.is_async:
+        if self.is_async():
             return self._async_generate(prompts, messages, prefix)
         else:
             return self._sync_generate(prompts, messages, prefix)
@@ -149,15 +147,6 @@ class OpenAILLM(BaseLLM):
     def num_tokens_from_string(self, string: str) -> int:
         num_tokens = len(self.tokenizer.encode(string))
         return num_tokens
-
-    def _sync_generate(
-        self,
-        prompts: Optional[Union[str, List[str]]] = None, 
-        messages: Optional[List[Dict]] = None,
-        prefix: Optional[str] = None
-    ) -> str:
-
-        return asyncio.run(self._async_generate(prompts, messages, prefix))
     
     @retry_with_exponential_backoff()
     def _create_completion(self, messages, max_tokens, max_completion_tokens):
@@ -207,16 +196,18 @@ class OpenAILLM(BaseLLM):
 
 
 
-def vLLM(BaseLLM):
+class vLLM(BaseLLM):
     def is_async(self) -> bool:
         return False
 
     def _initialize(self) -> None:
         self.max_parallel_num = 4
-        self.device = getattr(self.vllm_config, 'device', 'cuda')
-        self.tensor_parallel_size = getattr(self.vllm_config, 'tensor_parallel_size', 1)
+        self.config = getattr(self.generation_config, 'vllm_config', None)
+        if self.config is None:
+            raise ValueError('vLLM config is required for vLLM model')
+        self.tensor_parallel_size = getattr(self.config, 'tensor_parallel_size', 1)
 
-        print(f"Loading vLLM model '{self.model_name}' on device '{self.device}'...")
+        print(f"Loading vLLM model '{self.model_name}'...")
         self.llm = LLM(self.model_name, tensor_parallel_size=self.tensor_parallel_size)
         print("vLLM model loaded successfully.")
 
@@ -233,17 +224,21 @@ def vLLM(BaseLLM):
         prefix: Optional[str] = None
     ) -> str:
         assert prompts is None or messages is None, "Do not supply parameters `prompts` and `messages` together"
+        sampling_params_kwargs = {
+            'temperature': getattr(self.generation_config, 'temperature', None),
+            'max_tokens': getattr(self.generation_config, 'max_tokens', None),
+            'top_p': getattr(self.generation_config, 'top_p', None),
+            'repetition_penalty': getattr(self.generation_config, 'repetition_penalty', None)
+        }
         sampling_params = SamplingParams(
-            temperature=getattr(self.generation_config, 'temperature', 0.7),
-            max_tokens=getattr(self.generation_config, 'max_tokens', 512),
-            top_p=getattr(self.generation_config, 'top_p', None),
-            repetition_penalty=getattr(self.generation_config, 'repetition_penalty', None),
+            **{k: v for k, v in sampling_params_kwargs.items() if v is not None}
         )
         if isinstance(prompts, str):
             prompts = [prompts]
         is_chat = getattr(self.generation_config, 'is_chat', False)
         if is_chat:
             if messages is None:
+                _add_generation_prompt = True if prefix is None else False
                 messages = [
                     [{"role": "user", "content": prompt}] \
                         if prefix is None else \
@@ -251,28 +246,24 @@ def vLLM(BaseLLM):
                     for prompt in prompts
                 ]
             input_texts = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
+                messages, tokenize=False, add_generation_prompt=_add_generation_prompt
             )
-            input_texts = [text.rstrip(self.tokenizer.eos_token + '\n') for text in input_texts]
+            input_texts = [text.removesuffix(self.tokenizer.eos_token + '\n') for text in input_texts]
         else:
             if messages is not None:
-                raise ValueError('`messages` params not support when not in chat mode')
+                raise ValueError('`messages` params no need when not in chat mode')
+            input_texts = [prompt if prefix is None else prompt + prefix for prompt in prompts]
             
-    
-    async def _async_generate(
-        self,
-        prompts: Optional[Union[str, List[str]]] = None, 
-        messages: Optional[List[Dict]] = None,
-        prefix: Optional[str] = None
-    ) -> str:
-        pass
+        outputs = self.llm.generate(prompts=input_texts, sampling_params=sampling_params)
+        generated_texts = [output.outputs[0].text for output in outputs]
+        return generated_texts
 
 
 class LLMFactory:
     _models: Dict[ModelType, Type[BaseLLM]] = {
         # ModelType.HF: HuggingFaceLLM,
         ModelType.OPENAI: OpenAILLM,
-        # ModelType.VLLM: vLLMLLM,
+        ModelType.VLLM: vLLM,
     }
 
     @classmethod
@@ -292,4 +283,5 @@ class LLMFactory:
             return model_class(model_name, generation_config)
         
         except Exception as e:
-            raise RuntimeError(f"Failed to create LLM instance: {e}")
+            import traceback
+            raise RuntimeError(f"Failed to create LLM instance: {traceback.format_exc()}") 

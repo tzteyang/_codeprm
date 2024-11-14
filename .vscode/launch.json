@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--config_file", "/root/autodl-tmp/projects/codeprm/process_data_annotation/configs/run_config.yaml"
+                "--config_file", "/root/autodl-tmp/projects/_codeprm/process_data_annotation/configs/run_config.yaml"
             ]
         },
         {

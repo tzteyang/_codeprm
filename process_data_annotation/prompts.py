@@ -187,7 +187,6 @@ Now, with the problem description provided below, you need to provide or complet
 ### Description
 {question}
 
-### Solution
 {solution}"""
 
 

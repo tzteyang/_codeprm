@@ -15,10 +15,10 @@ def prompt_prepare(state: State) -> str:
     few_shot_file = './process_data_annotation/data/taco_sampled_examples.json'
     with open(few_shot_file, 'r', encoding='utf-8') as f:
         few_shot_pool = json.loads(f.read())
-    few_shot_template = """## Description
+    few_shot_template = """### Description
 {question}
 
-## Solution
+### Solution
 {solution}"""
     no_repeat_few_shot = list(filter(lambda x: x["question"] != state.given_problem, few_shot_pool))
     stdio_shot = list(filter(lambda x: x["code_type"] == 'STDIO', no_repeat_few_shot))
@@ -42,7 +42,7 @@ def prompt_prepare(state: State) -> str:
     return prepared_prompt
 
 
-async def rollout_on_state(
+def rollout_on_state(
     llm: BaseLLM,
     rollout_num: int,  
     prompt: Optional[str] = None,
@@ -53,26 +53,28 @@ async def rollout_on_state(
     rollout_responses = []
 
     if llm.is_async():
-        max_requests_num = llm.max_parallel_num
-        for i in tqdm(range(0, rollout_num, max_requests_num), leave=True):
-            tasks = [
-                llm.generate(prompt, messages, prefix)
-                for j in range(i, min(i + max_requests_num, rollout_num))
-            ]
-            responses = await asyncio.gather(*tasks)
-            rollout_responses.extend(responses)
+        async def async_generation():
+            max_requests_num = llm.max_parallel_num
+            for i in tqdm(range(0, rollout_num, max_requests_num), leave=True):
+                tasks = [
+                    llm.generate(prompt, messages, prefix)
+                    for j in range(i, min(i + max_requests_num, rollout_num))
+                ]
+                responses = await asyncio.gather(*tasks)
+                rollout_responses.extend(responses)
+            return rollout_responses
+        
+        return asyncio.run(async_generation())
     else:
         max_batch_size = llm.max_parallel_num
         for i in tqdm(range(0, rollout_num, max_batch_size), leave=False):
             j = min(i + max_batch_size, rollout_num)
-            batch_size = j - i + 1
+            batch_size = j - i
             if prompt is not None:
                 prompts = [prompt] * batch_size
             if messages is not None:
                 messages = messages * batch_size
-            if prefix is not None:
-                prefix = prefix * batch_size
-            
+            assert isinstance(prefix, str), 'Prefix must be a string'
             responses = llm.generate(prompts, messages, prefix)
 
             rollout_responses.extend(responses)

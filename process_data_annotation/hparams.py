@@ -26,6 +26,8 @@ class ModelParams:
     temperature: float
     max_tokens: int
     max_completion_tokens: int
+    is_chat: bool
+    vllm_config: Optional[Dict] = None
 
     @classmethod
     def from_dict(cls, config_dict: Dict):
@@ -34,7 +36,9 @@ class ModelParams:
             model_name=config_dict.get('model_name'),
             temperature=config_dict.get('temperature', 1.0),
             max_tokens=config_dict.get('max_tokens', 512),
-            max_completion_tokens=config_dict.get('max_completion_tokens', 2048)
+            max_completion_tokens=config_dict.get('max_completion_tokens', 2048),
+            is_chat=config_dict.get('is_chat', True),
+            vllm_config=config_dict.get('vllm_config', None)
         )
 
 
