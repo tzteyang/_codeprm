@@ -18,6 +18,8 @@ from openai import APITimeoutError, RateLimitError
 from httpx import ConnectTimeout
 from vllm import LLM, SamplingParams
 
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 @dataclass
 class GenerationConfig:
@@ -201,7 +203,7 @@ class vLLM(BaseLLM):
         return False
 
     def _initialize(self) -> None:
-        self.max_parallel_num = 4
+        self.max_parallel_num = 16
         self.config = getattr(self.generation_config, 'vllm_config', None)
         if self.config is None:
             raise ValueError('vLLM config is required for vLLM model')

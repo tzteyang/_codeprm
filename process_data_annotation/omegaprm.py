@@ -101,7 +101,7 @@ class CodeOmegaPRM:
 
             # Log the selected rollout
             state_id = self.T.nodes.index(selected_state)
-            logger.debug(f"Selection Phase: Selected rollout from State ID {state_id}")
+            logger.debug("=" * 15 + f"Selection Phase: Selected rollout from State ID {state_id}" + '=' * 15)
             logger.debug(f"Selected state MC: {selected_state.MC}")
             logger.debug(f"Selected state N: {selected_state.N}")
             logger.debug(f"Selected state Q_and_U: {self.compute_selection_score(selected_state, selected_rollout)}")
@@ -121,6 +121,9 @@ class CodeOmegaPRM:
             # Increment search count
             selected_state.N += 1
             self.n += 1
+            logger.debug('#' * 30)
+            logger.info(f'End of Iteration {self.n}')
+            logger.debug('#' * 30)
 
         steps_data = self.collect_solution_prefixes()
         tree_data = self.collect_tree_structure()
@@ -164,7 +167,7 @@ class CodeOmegaPRM:
 
         # asynchronous parallel rollout sampling
 
-        logger.debug('*** Solution prefix for rollout ***')
+        logger.debug('*' * 15 + ' Solution prefix for rollout ' + '*' * 15)
         logger.info(state.solution_prefix)
         k_rollout_solutions = rollout_on_state(
             llm=self.LM,
@@ -172,9 +175,9 @@ class CodeOmegaPRM:
             prompt=prompt_prepare(state),
             prefix=state.solution_prefix
         )
-        logger.debug('*** One of rollout solutions ***')
+        logger.debug('*' * 15 + ' One of rollout solutions ' + '*' * 15)
         logger.info(k_rollout_solutions[0])
-        breakpoint()
+        # breakpoint()
         self.total_rollouts += self.k
         
         # Handle cases where subsequent rollouts may duplicate content from the current state's solution_prefix
@@ -218,9 +221,11 @@ class CodeOmegaPRM:
         state.total_rollouts += self.k
         state.correct_rollouts += c
         state.MC = state.correct_rollouts / state.total_rollouts if state.total_rollouts > 0 else 0
-        logger.debug('*' * 10 + ' Intermediate Info ' + '*' * 10)
+        logger.debug('=' * 15 + ' End of Monte Carlo Estimation ' + '=' * 15)
         logger.info(f"Current rollout costs: {self.total_rollouts}, Total rollout budget: {self.rollout_budget}")
-        logger.info(f"\nMonte Carlo Estimation for State ID {self.T.nodes.index(state)}: MC = {state.MC:.2f}\n\tTotal Rollouts = {state.total_rollouts}\n\tCorrect Rollouts = {state.correct_rollouts}")
+        logger.info(f"Monte Carlo Estimation for State ID {self.T.nodes.index(state)}: MC = {state.MC:.2f}")
+        logger.info(f'\tTotal Rollouts = {state.total_rollouts}')
+        logger.info(f'\tCorrect Rollouts = {state.correct_rollouts}')
 
         if state.MC == 1.0:
             # Add all correct rollouts to the tree as new states
@@ -236,9 +241,9 @@ class CodeOmegaPRM:
                 self.add_correct_rollout_to_tree(state, rollout)
             # Add incorrect rollouts to candidate pool with updated priorities
             unique_incorrect_rollouts = set(incorrect_rollouts)
-            logger.debug(f"Candidate Pool Insert Incorrect Rollouts for State ID {self.T.nodes.index(state)}:")
-            logger.info(f"Total Incorrect Rollouts: {len(incorrect_rollouts)}")
-            logger.info(f"Unique Incorrect Rollouts: {len(unique_incorrect_rollouts)}")
+            logger.debug('\n' + '=' * 10 + f" Candidate Pool Insert Incorrect Rollouts for State ID {self.T.nodes.index(state)}: " + '=' * 10)
+            print(f"Total Incorrect Rollouts: {len(incorrect_rollouts)}")
+            print(f"Unique Incorrect Rollouts: {len(unique_incorrect_rollouts)}")
             for rollout in incorrect_rollouts:
                 priority = self.compute_selection_score(state, rollout)
                 self.C.add_or_update(state, rollout, priority)
@@ -345,11 +350,13 @@ class CodeOmegaPRM:
 
         if s_new.MC == 0:
             # Found incorrect step; continue searching in the left half to find earlier incorrect steps
-            logger.info(f">> Binary Search Info << State ID {state_id_new} has MC == 0. Incorrect Step {mid + 1} found. Searching earlier steps.")
+            logger.debug('>>' * 10 + ' Binary Search Info ' + '<<' * 10) 
+            logger.info(f'State ID {state_id_new} has MC == 0. Incorrect Step {mid + 1} found. Searching earlier steps.')
             self.binary_search_incorrect_step(s_ast, steps, left, mid - 1)
         else:
             # Steps up to mid are correct; continue searching in the right half
-            logger.info(f">> Binary Search Info << State ID {state_id_new} has MC == {s_new.MC:.2f}. Steps up to Step {mid + 1} are correct. Searching later steps.")
+            logger.debug('>>' * 10 + ' Binary Search Info ' + '<<' * 10)
+            logger.info(f"State ID {state_id_new} has MC == {s_new.MC:.2f}. Steps up to Step {mid + 1} are correct. Searching later steps.")
             self.binary_search_incorrect_step(s_new, steps, mid + 1, right)
 
     def maintenance_phase(self, state: State):
