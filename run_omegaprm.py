@@ -87,7 +87,7 @@ def exist_problem_count(data_params: DataParams) -> int:
 
 def create_generation_config(model_params: ModelParams) -> GenerationConfig:
     vllm_config = None
-    if model_params.model_type.lower() == 'vllm':
+    if model_params.model_type.lower() in ['vllm', "vllm_server"]:
         if not model_params.vllm_config:
             raise ValueError('VLLM config is required for VLLM model type')
         vllm_config = vLLMConfig(**model_params.vllm_config)

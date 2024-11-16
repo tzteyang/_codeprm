@@ -51,20 +51,41 @@ def rollout_on_state(
 ) -> List[str]:
     
     rollout_responses = []
+    support_batch_async = llm.__class__.__name__ in ['vLLMServer', ]
 
     if llm.is_async():
-        async def async_generation():
-            max_requests_num = llm.max_parallel_num
-            for i in tqdm(range(0, rollout_num, max_requests_num), leave=True):
-                tasks = [
-                    llm.generate(prompt, messages, prefix)
-                    for j in range(i, min(i + max_requests_num, rollout_num))
-                ]
+        if support_batch_async:
+            async def async_batch_generation():
+                max_batch_size = llm.max_parallel_num
+                tasks = []
+                for i in tqdm(range(0, rollout_num, max_batch_size), leave=False):
+                    j = min(i + max_batch_size, rollout_num)
+                    batch_size = j - i
+                    
+                    nonlocal messages, prompt
+                    if prompt is not None:
+                        prompts = [prompt] * batch_size
+                    if messages is not None:
+                        messages = messages * batch_size
+                    assert isinstance(prefix, str), 'Prefix must be a string'
+                    tasks.append(llm.generate(prompts, messages, prefix))
                 responses = await asyncio.gather(*tasks)
-                rollout_responses.extend(responses)
-            return rollout_responses
+                return sum(responses, [])
+            
+            return asyncio.run(async_batch_generation())
+        else:
+            async def async_generation():
+                max_requests_num = llm.max_parallel_num
+                for i in tqdm(range(0, rollout_num, max_requests_num), leave=True):
+                    tasks = [
+                        llm.generate(prompt, messages, prefix)
+                        for j in range(i, min(i + max_requests_num, rollout_num))
+                    ]
+                    responses = await asyncio.gather(*tasks)
+                    rollout_responses.extend(responses)
+                return rollout_responses
         
-        return asyncio.run(async_generation())
+            return asyncio.run(async_generation())
     else:
         max_batch_size = llm.max_parallel_num
         for i in tqdm(range(0, rollout_num, max_batch_size), leave=False):
