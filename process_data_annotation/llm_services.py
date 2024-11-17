@@ -204,7 +204,6 @@ class OpenAILLM(BaseLLM):
         return response
 
 
-
 class vLLM(BaseLLM):
     def is_async(self) -> bool:
         return False
@@ -324,7 +323,7 @@ class vLLMServer(BaseLLM):
         )
         print(f'vLLM API wrapper created with model: {self.client.models.list().data[0].id}')
 
-        self.max_parallel_num = 4
+        self.max_parallel_num = 8
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
     
     def num_tokens_from_string(self, string: str) -> int:
@@ -382,12 +381,13 @@ class vLLMServer(BaseLLM):
                     temperature=getattr(self.generation_config, 'temperature', None),
                     max_tokens=getattr(self.generation_config, 'max_tokens', None),
                     top_p=getattr(self.generation_config, 'top_p', None),
+                    top_k=getattr(self.generation_config, 'top_k', None),
                     repetition_penalty=getattr(self.generation_config, 'repetition_penalty', None)
                 )
             )
 
         responses = [choice.text for choice in completion.choices]
-        breakpoint()
+
         return responses
 
 
