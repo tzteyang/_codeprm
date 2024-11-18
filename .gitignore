@@ -4,3 +4,4 @@
 **/logs/*
 **/outputs/*
 **/outputs_pre/*
+**/wandb/*

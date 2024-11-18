@@ -97,7 +97,6 @@ class CodeOmegaPRM:
         # Calculate statistics
         import numpy as np
         import matplotlib.pyplot as plt
-        from pathlib import Path
         
          # Calculate statistics
         mean_value = np.mean(mc_values)
@@ -180,6 +179,7 @@ class CodeOmegaPRM:
 
             if output_file:
                 output_path = Path(output_file)
+                # breakpoint()
                 with output_path.open('w', encoding='utf-8') as f:
                     json.dump(steps_data, f, indent=4, ensure_ascii=False)
                     print(f"Results saved to {output_path}")
@@ -187,7 +187,6 @@ class CodeOmegaPRM:
             # analyze the saved data
             import matplotlib.pyplot as plt
             import numpy as np
-            from pathlib import Path
             
             with open(data_path, 'r', encoding='utf-8') as f:
                 steps_data = json.load(f)
@@ -320,7 +319,7 @@ class CodeOmegaPRM:
                     "prompt": prompt,
                     "response": response_steps,
                     "has_final_step": solution_steps["has_final_step"],
-                    "label": label
+                    "label": [label]
                 })
             prm_raw_data.extend(_temp_data)
         
