@@ -26,6 +26,9 @@ class ModelParams:
     temperature: float
     max_tokens: int
     max_completion_tokens: int
+    top_p: float
+    top_k: int
+    repetition_penalty: float
     is_chat: bool
     vllm_config: Optional[Dict] = None
 
@@ -37,6 +40,9 @@ class ModelParams:
             temperature=config_dict.get('temperature', 1.0),
             max_tokens=config_dict.get('max_tokens', 512),
             max_completion_tokens=config_dict.get('max_completion_tokens', 2048),
+            top_p=config_dict.get('top_p', None),
+            top_k=config_dict.get('top_k', None),
+            repetition_penalty=config_dict.get('repetition_penalty', None),
             is_chat=config_dict.get('is_chat', True),
             vllm_config=config_dict.get('vllm_config', None)
         )

@@ -96,6 +96,9 @@ def create_generation_config(model_params: ModelParams) -> GenerationConfig:
         temperature=model_params.temperature,
         max_completion_tokens=model_params.max_completion_tokens,
         max_tokens=model_params.max_tokens,
+        top_p=model_params.top_p,
+        top_k=model_params.top_k,
+        repetition_penalty=model_params.repetition_penalty,
         is_chat=model_params.is_chat,
         vllm_config=vllm_config
     )

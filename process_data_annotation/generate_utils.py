@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random
+import time
 from tqdm import tqdm
 from typing import List, Union, Optional, Dict
 from concurrent.futures import ThreadPoolExecutor
@@ -9,7 +10,17 @@ from .checker_utils import CodeSolutionParser
 from .llm_services import BaseLLM, ModelType
 from .structure import State
 from .prompts import GENERATE_PROMPT
+from .logger_config import CustomLogger
 
+def timer(func):
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        used_time = time.time() - start
+        logger = CustomLogger.get_logger()
+        logger.debug(f"`{func.__name__}` time cost: {used_time:.2f}s")
+        return result
+    return wrapper
 
 def prompt_prepare(state: State) -> str:
     few_shot_file = './process_data_annotation/data/taco_sampled_examples.json'
@@ -41,7 +52,7 @@ def prompt_prepare(state: State) -> str:
 
     return prepared_prompt
 
-
+@timer
 def rollout_on_state(
     llm: BaseLLM,
     rollout_num: int,  
@@ -76,7 +87,7 @@ def rollout_on_state(
         else:
             async def async_generation():
                 max_requests_num = llm.max_parallel_num
-                for i in tqdm(range(0, rollout_num, max_requests_num), leave=True):
+                for i in range(0, rollout_num, max_requests_num):
                     tasks = [
                         llm.generate(prompt, messages, prefix)
                         for j in range(i, min(i + max_requests_num, rollout_num))
