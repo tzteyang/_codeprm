@@ -7,14 +7,22 @@ import random
 from typing import Tuple, List, Dict, Union, Optional
 from peft import PeftModel
 from peft import get_peft_model, LoraConfig, TaskType
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments
+from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, Seq2SeqTrainingArguments
 from transformers import DataCollatorWithPadding, DataCollatorForSeq2Seq
 from sklearn.metrics import roc_auc_score, log_loss, accuracy_score
 from torch.nn import BCEWithLogitsLoss
 from datasets import concatenate_datasets
 from datasets import load_dataset
 
-from .accelerator_utils import AcceleratorManager, get_accelerator
+
+def print_rank_0(msg):
+    local_rank = int(os.environ.get('LOCAL_RANK', -1))
+    if local_rank == 0:
+        print(msg)
+
+def print_rank(msg: str):
+    local_rank = int(os.environ.get('LOCAL_RANK', -1))
+    print(f'rank {local_rank}:\n{msg}')
 
 
 def setup_model_and_tokenizer(model_path: str) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
@@ -39,7 +47,7 @@ def setup_model_and_tokenizer(model_path: str) -> Tuple[AutoModelForCausalLM, Au
     )
 
     model = get_peft_model(model, lora_config)
-
+    model.print_trainable_parameters()
     return model, tokenizer
 
 
@@ -53,11 +61,11 @@ class DatasetProcessor:
         self.step_tag_id = self.tokenizer.encode(f"{self.step_tag}")[-1]
         
     def print_example(self, example):
-        print('*' * 20 + ' Example View ' + '*' * 20)
-        print('Tokenized Data:\n' + '=' * 30 + '\n'
+        print_rank_0('*' * 20 + ' Example View ' + '*' * 20)
+        print_rank_0('Tokenized Data:\n' + '=' * 30 + '\n'
             f'Input_ids: {example["input_ids"]}\nAttention_mask: {example["attention_mask"]}\nLabels: {example["labels"]}')
         valid_labels = [label for label in example["labels"] if label != -100]
-        print('Decoded Data:\n' + '=' * 30 + '\n'
+        print_rank_0('Decoded Data:\n' + '=' * 30 + '\n'
             f'Input: {self.tokenizer.decode(example["input_ids"])}\nLabels: {self.tokenizer.decode(valid_labels)}')
 
     def preprocess_example(self, example):
@@ -92,7 +100,7 @@ class DatasetProcessor:
         assert len(tokenized_inputs["input_ids"]) == len(tokenized_inputs["labels"]) == len(tokenized_inputs["attention_mask"])
         return tokenized_inputs
 
-    def prepare_datasets(self, data_path, test_size=0.2, seed=42):
+    def prepare_datasets(self, data_path, training_args: Seq2SeqTrainingArguments, test_size=0.2, seed=42):
         dataset = load_dataset('json', data_files=data_path, split='train')
         dataset = dataset.filter(lambda x: x["prompt"])
         
@@ -101,18 +109,18 @@ class DatasetProcessor:
             seed=seed,
             shuffle=True
         )
-        
-        tokenized_datasets = {
-            split: splits[split].map(
-                self.preprocess_example,
-                remove_columns=splits[split].column_names,
-                desc=f"Processing {split} split",
-            )
-            for split in splits
-        }
-        
-        print(f"Training set size: {len(tokenized_datasets['train'])}")
-        print(f"Test set size: {len(tokenized_datasets['test'])}")
+
+        with training_args.main_process_first(desc="Tokenizing datasets"):
+            tokenized_datasets = {
+                split: splits[split].map(
+                    self.preprocess_example,
+                    remove_columns=splits[split].column_names,
+                )
+                for split in splits
+            }
+
+        print_rank_0(f"Training set size: {len(tokenized_datasets['train'])}")
+        print_rank_0(f"Test set size: {len(tokenized_datasets['test'])}")
         
         ridx = random.randint(0, len(tokenized_datasets["train"]) - 1)
         self.print_example(tokenized_datasets["train"][ridx])
@@ -146,58 +154,29 @@ class DatasetProcessor:
             'll': ll,
             'acc': acc,
         }
-        print(result)
+        print_rank_0(result)
         return result
 
-def run_exp(args):
-    AcceleratorManager.initialize(
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-    )
-    accelerator = get_accelerator()
-
-    print('loading model and toeknizer...')
-    model_path = args.model_path
-    model, tokenizer = setup_model_and_tokenizer(model_path)
-
+def run_exp(model_args, data_args, training_args):
+    print_rank_0('loading model and toeknizer...')
+    model, tokenizer = setup_model_and_tokenizer(model_args.model_name_or_path)
+    print_rank_0(model)
     processor = DatasetProcessor(tokenizer)
-    print('start data processing...')
-    tokenized_datasets = processor.prepare_datasets(args.data_path)
+    print_rank_0('start data processing...')
+    tokenized_datasets = processor.prepare_datasets(data_args.data_path, training_args)
     # Data collator for padding inputs dynamically
+    # print_rank(tokenized_datasets["train"][101]["input_ids"])
+    # print_rank(tokenizer.decode(tokenized_datasets["train"][101]["input_ids"]))
     data_collator = DataCollatorForSeq2Seq(tokenizer)
-    # breakpoint()
-    world_size = accelerator.num_processes
-    per_device_total_batch_size = args.per_device_train_batch_size * args.gradient_accumulation_steps
+
+    world_size = int(os.environ.get('WORLD_SIZE', 1))
+    per_device_total_batch_size = training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps
     TOTAL_BATCH_SIZE = per_device_total_batch_size * world_size
-    print(f"Total batch size: {TOTAL_BATCH_SIZE}")
+    print_rank_0(f"Total batch size: {TOTAL_BATCH_SIZE}")
 
-    fp = f'bs_{TOTAL_BATCH_SIZE}_g_{args.gradient_accumulation_steps}_lr_{args.learning_rate}_ep_{args.epochs}'
-    output_dir = os.path.join(args.output_dir, fp)
-
-    # Training arguments
-    training_args = TrainingArguments(
-        output_dir=os.path.join(output_dir, "checkpoints"),
-        eval_strategy="steps",  # evaluate by steps
-        eval_steps=args.eval_steps,  # Add evaluation steps parameter
-        save_strategy="steps",  # save by steps
-        save_steps=args.save_steps,  # Add save steps parameter
-        save_total_limit=args.save_total_limit,  # Limit the number of checkpoints saved
-        learning_rate=args.learning_rate,
-        per_device_train_batch_size=args.per_device_train_batch_size,
-        per_device_eval_batch_size=args.per_device_eval_batch_size,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-        num_train_epochs=args.epochs,
-        weight_decay=0.01,
-        logging_dir=os.path.join(output_dir, "logs"),
-        logging_steps=10,
-        bf16=True,
-        report_to="wandb",
-        dataloader_num_workers=4,
-        deepspeed=None,
-        ddp_find_unused_parameters=False,
-        # Add configuration for loading checkpoints
-        resume_from_checkpoint=args.resume_from_checkpoint
-    )
-
+    fp = f'bs_{TOTAL_BATCH_SIZE}_g_{training_args.gradient_accumulation_steps}_lr_{training_args.learning_rate}_ep_{training_args.num_train_epochs}'
+    training_args.output_dir = os.path.join(training_args.output_dir, fp)
+    training_args.logging_dir = os.path.join(training_args.output_dir, 'logs')
     # Initialize the Trainer
     trainer = Trainer(
         model=model,
@@ -209,12 +188,10 @@ def run_exp(args):
         preprocess_logits_for_metrics=processor.preprocess_logits_for_metrics,
         compute_metrics=processor.compute_metrics,
     )
-    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
-
-    # Save the fine-tuned model and tokenizer
-    model.save_pretrained(os.path.join(output_dir, 'final_model'))
-    tokenizer.save_pretrained(os.path.join(output_dir, 'final_model'))
-
+    trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
+    
+    trainer.save_state()
+    trainer.save_model(output_dir=training_args.output_dir)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

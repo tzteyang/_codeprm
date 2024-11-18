@@ -43,3 +43,7 @@ def get_world_size() -> int:
 
 def synchronize():
     get_accelerator().wait_for_everyone()
+
+def print_rank_0(msg):
+    if is_main_process():
+        print(msg)

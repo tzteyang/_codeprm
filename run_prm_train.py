@@ -1,32 +1,45 @@
 import argparse
+import os
+from dataclasses import dataclass, field
+from typing import Optional
+from transformers import Seq2SeqTrainingArguments, HfArgumentParser
+
 from train_prm.train_qwen import run_exp
 
+def print_rank_0(msg):
+    local_rank = int(os.environ.get('LOCAL_RANK', -1))
+    if local_rank == 0:
+        print(msg)
+
+@dataclass
+class ModelArguments:
+    """
+    Arguments pertaining to which model/config/tokenizer we are going to fine-tune.
+    """
+    model_name_or_path: str = field(
+        metadata={"help": "Path to pretrained model", "required": True}
+    )
+
+@dataclass
+class DataTrainingArguments:
+    """
+    Arguments pertaining to what data we are going to input our model for training and eval.
+    """
+    data_path: str = field(
+        metadata={"help": "Path to dataset", "required": True}
+    )
+    server: str = field(
+        default="1",
+        metadata={"help": "Server configuration"}
+    )
+
 def main():
-    parser = argparse.ArgumentParser()
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments))
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    parser.add_argument("--model_path", type=str, required=True)
-    parser.add_argument("--data_path", type=str, required=True)
-    parser.add_argument("--server", type=str, default='1')
-    parser.add_argument("--output_dir", type=str, required=True)
-    
-    #
-    parser.add_argument("--per_device_train_batch_size", type=int, default=4)
-    parser.add_argument("--per_device_eval_batch_size", type=int, default=4)
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
-    parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--learning_rate", type=float, default=1e-4)
-    
-    # 
-    parser.add_argument("--eval_steps", type=int, default=500)
-    parser.add_argument("--save_steps", type=int, default=500)
-    parser.add_argument("--save_total_limit", type=int, default=3)
-    parser.add_argument("--resume_from_checkpoint", type=str, default=None)
+    print_rank_0('*'*30+f'Model arguments:\n{model_args}\nData arguments:\n{data_args}\nTraining arguments:\n{training_args}\n'+'*'*30)
 
-    args = parser.parse_args()
-
-    print('*' * 50 + f'\n{args}\n' + '*' * 50)
-
-    run_exp(args)
+    run_exp(model_args, data_args, training_args)
 
 if __name__ == '__main__':
     main()

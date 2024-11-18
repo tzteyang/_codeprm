@@ -1,13 +1,16 @@
 compute_environment: LOCAL_MACHINE
 debug: false
-distributed_type: MULTI_GPU
+# distributed_type: MULTI_GPU
+deepspeed_config:
+ deepspeed_config_file: /root/autodl-tmp/projects/_codeprm/train_prm/dist_configs/ds_zero2_config.json
+distributed_type: DEEPSPEED
 downcast_bf16: 'no'
 gpu_ids: all
 machine_rank: 0
-main_training_function: main
-mixed_precision: 'bf16'
+# main_training_function: main
+# mixed_precision: 'bf16'
 num_machines: 1
-num_processes: 1
+num_processes: 4
 rdzv_backend: static
 same_network: true
 tpu_env: []
