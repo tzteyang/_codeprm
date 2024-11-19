@@ -27,9 +27,8 @@ class ModelParams:
     max_tokens: int
     max_completion_tokens: int
     top_p: float
-    top_k: int
-    repetition_penalty: float
     is_chat: bool
+    extra_body: Optional[Dict] = None
     vllm_config: Optional[Dict] = None
 
     @classmethod
@@ -41,9 +40,8 @@ class ModelParams:
             max_tokens=config_dict.get('max_tokens', 512),
             max_completion_tokens=config_dict.get('max_completion_tokens', 2048),
             top_p=config_dict.get('top_p', None),
-            top_k=config_dict.get('top_k', None),
-            repetition_penalty=config_dict.get('repetition_penalty', None),
             is_chat=config_dict.get('is_chat', True),
+            extra_body=config_dict.get('extra_body', None),
             vllm_config=config_dict.get('vllm_config', None)
         )
 

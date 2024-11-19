@@ -69,7 +69,7 @@ def rollout_on_state(
             async def async_batch_generation():
                 max_batch_size = llm.max_parallel_num
                 tasks = []
-                for i in tqdm(range(0, rollout_num, max_batch_size), leave=False):
+                for i in range(0, rollout_num, max_batch_size):
                     j = min(i + max_batch_size, rollout_num)
                     batch_size = j - i
                     

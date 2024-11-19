@@ -24,6 +24,8 @@ from httpx import ConnectTimeout
 from vllm import LLM, SamplingParams
 from transformers import AutoTokenizer
 
+from .logger_config import CustomLogger
+
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -66,18 +68,23 @@ def retry_with_exponential_backoff(
         @wraps(func)
         def wrapper(*args, **kwargs):
             delay = initial_delay
+            logger = CustomLogger.get_logger()
             for attempt in range(retries):
                 try:
                     return func(*args, **kwargs)
                 except exceptions as e:
                     if attempt == retries - 1:
-                        raise e
+                        import traceback
+                        logger.error(f"Request failed after {retries} attempts, error: {traceback.format_exc()}")
+                        return None
                     sleep_time = delay + random.uniform(0, delay)
                     print(f"Request failed, error: {e}. Retrying in {sleep_time:.2f} seconds (attempt {attempt + 1})")
                     time.sleep(sleep_time)
                     delay = min(delay * 2, max_delay)
                 except Exception as e:
                     # raise e
+                    import traceback
+                    logger.error(f"Request failed, error: {traceback.format_exc()}")
                     return None
         return wrapper
     return decorator
@@ -337,6 +344,7 @@ class vLLMServer(BaseLLM):
         prompts: Union[str, List[str]], 
         **kwargs
     ) -> Completion:
+        # breakpoint()
         return self.client.completions.create(
             model=model_name,
             prompt=prompts,
@@ -381,8 +389,7 @@ class vLLMServer(BaseLLM):
                     temperature=getattr(self.generation_config, 'temperature', None),
                     max_tokens=getattr(self.generation_config, 'max_tokens', None),
                     top_p=getattr(self.generation_config, 'top_p', None),
-                    top_k=getattr(self.generation_config, 'top_k', None),
-                    repetition_penalty=getattr(self.generation_config, 'repetition_penalty', None)
+                    extra_body=getattr(self.generation_config, 'extra_body', None)
                 )
             )
 

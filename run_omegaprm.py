@@ -97,9 +97,8 @@ def create_generation_config(model_params: ModelParams) -> GenerationConfig:
         max_completion_tokens=model_params.max_completion_tokens,
         max_tokens=model_params.max_tokens,
         top_p=model_params.top_p,
-        top_k=model_params.top_k,
-        repetition_penalty=model_params.repetition_penalty,
         is_chat=model_params.is_chat,
+        extra_body=model_params.extra_body,
         vllm_config=vllm_config
     )
 
