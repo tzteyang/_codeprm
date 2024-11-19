@@ -3,7 +3,6 @@ import torch
 import argparse
 import os
 import random
-
 from typing import Tuple, List, Dict, Union, Optional
 from peft import PeftModel
 from peft import get_peft_model, LoraConfig, TaskType
@@ -11,18 +10,18 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, Seq2SeqTr
 from transformers import DataCollatorWithPadding, DataCollatorForSeq2Seq
 from sklearn.metrics import roc_auc_score, log_loss, accuracy_score
 from torch.nn import BCEWithLogitsLoss
-from datasets import concatenate_datasets
 from datasets import load_dataset
+from accelerate import PartialState
 
+DIST_STATE = PartialState()
 
+@DIST_STATE.on_local_main_process
 def print_rank_0(msg):
-    local_rank = int(os.environ.get('LOCAL_RANK', -1))
-    if local_rank == 0:
-        print(msg)
+    print(msg)
 
 def print_rank(msg: str):
     local_rank = int(os.environ.get('LOCAL_RANK', -1))
-    print(f'rank {local_rank}:\n{msg}')
+    print(f'[LOCAL_RANK {local_rank}]:\n{msg}')
 
 
 def setup_model_and_tokenizer(model_path: str) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
@@ -47,7 +46,8 @@ def setup_model_and_tokenizer(model_path: str) -> Tuple[AutoModelForCausalLM, Au
     )
 
     model = get_peft_model(model, lora_config)
-    model.print_trainable_parameters()
+    with DIST_STATE.local_main_process_first():
+        model.print_trainable_parameters()
     return model, tokenizer
 
 
@@ -160,7 +160,7 @@ class DatasetProcessor:
 def run_exp(model_args, data_args, training_args):
     print_rank_0('loading model and toeknizer...')
     model, tokenizer = setup_model_and_tokenizer(model_args.model_name_or_path)
-    print_rank_0(model)
+
     processor = DatasetProcessor(tokenizer)
     print_rank_0('start data processing...')
     tokenized_datasets = processor.prepare_datasets(data_args.data_path, training_args)
@@ -169,7 +169,8 @@ def run_exp(model_args, data_args, training_args):
     # print_rank(tokenizer.decode(tokenized_datasets["train"][101]["input_ids"]))
     data_collator = DataCollatorForSeq2Seq(tokenizer)
 
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
+    # world_size = int(os.environ.get('WORLD_SIZE', 1))
+    world_size = DIST_STATE.num_processes
     per_device_total_batch_size = training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps
     TOTAL_BATCH_SIZE = per_device_total_batch_size * world_size
     print_rank_0(f"Total batch size: {TOTAL_BATCH_SIZE}")
@@ -177,6 +178,7 @@ def run_exp(model_args, data_args, training_args):
     fp = f'bs_{TOTAL_BATCH_SIZE}_g_{training_args.gradient_accumulation_steps}_lr_{training_args.learning_rate}_ep_{training_args.num_train_epochs}'
     training_args.output_dir = os.path.join(training_args.output_dir, fp)
     training_args.logging_dir = os.path.join(training_args.output_dir, 'logs')
+
     # Initialize the Trainer
     trainer = Trainer(
         model=model,
