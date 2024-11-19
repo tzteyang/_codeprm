@@ -45,6 +45,7 @@ class CodeOmegaPRM:
         
         if output_file:
             output_path = Path(output_file)
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
             output_data = {
                 "steps_data": collected_steps_data,
                 "tree_data": collected_tree_data
@@ -76,9 +77,9 @@ class CodeOmegaPRM:
 
         if data_path is not None:
             with open(data_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            steps_data = data['steps_data']
-            tree_data = data['tree_data']
+                steps_data = json.load(f)
+            # steps_data = data['steps_data']
+            # tree_data = data['tree_data']
         
         if not steps_data:
             raise ValueError("No data found to analyze")
@@ -135,6 +136,7 @@ class CodeOmegaPRM:
             plt.savefig(output_path)
             plt.close()
         
+        non_zero_or_one_values = list(filter(lambda x: x > 0.0 and x < 1.0, mc_values))
         # Prepare analysis results
         results = {
             'statistics': {
@@ -143,7 +145,8 @@ class CodeOmegaPRM:
                 'total_values': len(mc_values),
                 'min': float(np.min(mc_values)),
                 'max': float(np.max(mc_values)),
-                'std': float(np.std(mc_values))
+                'std': float(np.std(mc_values)),
+                'num_of_non_zero_or_one_values': len(non_zero_or_one_values)
             },
             # 'distribution': {
             #     'histogram': np.histogram(mc_values, bins=20),
@@ -153,6 +156,11 @@ class CodeOmegaPRM:
         
         return results
     
+    def is_invalid_prefix(self, prefix: str) -> bool:
+        solution_prefixs = ['### Solution']
+        prefix = prefix.strip()
+        return prefix and prefix not in solution_prefixs
+
     def analyze_steps_info(self,
                            data_path: Optional[str] = None,
                            preprocess: bool = True,
@@ -167,7 +175,7 @@ class CodeOmegaPRM:
             for question, question_annotation in steps_data.items():
                 for solution_step in question_annotation:
                     solution_prefix = solution_step.get("solution_prefix", "")
-                    if not solution_prefix:
+                    if not self.is_invalid_prefix(prefix=solution_prefix):
                         continue
                     parsed_info = code_solution_parser.process_solution(solution_prefix)
                     steps_count = parsed_info["total_steps"]
@@ -178,6 +186,7 @@ class CodeOmegaPRM:
                     })
 
             if output_file:
+                os.makedirs(os.path.dirname(output_file), exist_ok=True)    
                 output_path = Path(output_file)
                 # breakpoint()
                 with output_path.open('w', encoding='utf-8') as f:
@@ -324,6 +333,7 @@ class CodeOmegaPRM:
             prm_raw_data.extend(_temp_data)
         
         if output_file:
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
             output_path = Path(output_file)
             with output_path.open('w', encoding='utf-8') as f:
                 json.dump(prm_raw_data, f, indent=4, ensure_ascii=False)

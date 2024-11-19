@@ -46,7 +46,7 @@ def setup_model_and_tokenizer(model_path: str) -> Tuple[AutoModelForCausalLM, Au
     )
 
     model = get_peft_model(model, lora_config)
-    with DIST_STATE.local_main_process_first():
+    if DIST_STATE.is_local_main_process:
         model.print_trainable_parameters()
     return model, tokenizer
 
@@ -103,6 +103,7 @@ class DatasetProcessor:
     def prepare_datasets(self, data_path, training_args: Seq2SeqTrainingArguments, test_size=0.2, seed=42):
         dataset = load_dataset('json', data_files=data_path, split='train')
         dataset = dataset.filter(lambda x: x["prompt"])
+        # dataset = dataset.select(range(0, 100))
         
         splits = dataset.train_test_split(
             test_size=test_size,
