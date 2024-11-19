@@ -148,7 +148,7 @@ class DatasetProcessor:
         return prob[:, 1], gold
 
     def compute_metrics(self, eval_pred):
-        breakpoint()
+        # breakpoint()
         pre, labels = eval_pred
         auc = roc_auc_score(pre[1], pre[0])
         ll = log_loss(pre[1], pre[0])

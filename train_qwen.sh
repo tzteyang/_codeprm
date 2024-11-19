@@ -5,12 +5,12 @@ accelerate launch --config_file "/root/autodl-tmp/projects/_codeprm/train_prm/di
     --output_dir "/root/autodl-tmp/projects/_codeprm/train_prm/outputs" \
     --overwrite_output_dir \
     --per_device_train_batch_size 1 \
-    --per_device_eval_batch_size 2 \
+    --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 4 \
     --num_train_epochs 3 \
     --learning_rate 1e-4 \
     --lr_scheduler_type "cosine" \
-    --eval_steps 5 \
+    --eval_steps 100 \
     --save_steps 200 \
     --save_total_limit 2 \
     --eval_strategy "steps" \
