@@ -81,7 +81,7 @@ class DatasetProcessor:
         tokenized_inputs = self.tokenizer(input_w_template, padding=True)
         
         indices = [i for i, x in enumerate(tokenized_inputs['input_ids']) if x == self.step_tag_id]
-        
+
         if len(indices) != len(example['label']):
             example['label'] = example['label'][:len(indices)]
         
@@ -110,7 +110,7 @@ class DatasetProcessor:
             seed=seed,
             shuffle=True
         )
-
+        # breakpoint()
         with training_args.main_process_first(desc="Tokenizing datasets"):
             tokenized_datasets = {
                 split: splits[split].map(
@@ -130,6 +130,7 @@ class DatasetProcessor:
 
     # Define a custom metric function (e.g., accuracy for binary classification)
     def preprocess_logits_for_metrics(self, logits, labels):
+        # breakpoint()
         labels_index = torch.argwhere(torch.bitwise_or(
             labels == self.candidate_tokens[0], 
             labels == self.candidate_tokens[1]
@@ -138,14 +139,16 @@ class DatasetProcessor:
             labels[labels_index[:, 0], labels_index[:, 1]] == self.candidate_tokens[1], 
             0, 1
         )
+        labels_index[:, 1] -= 1
         logits = logits[labels_index[:, 0], labels_index[:, 1]][:, [
-            self.candidate_tokens[1], 
+            self.candidate_tokens[1],
             self.candidate_tokens[0]
         ]]
         prob = torch.softmax(logits, dim=-1)
         return prob[:, 1], gold
 
     def compute_metrics(self, eval_pred):
+        breakpoint()
         pre, labels = eval_pred
         auc = roc_auc_score(pre[1], pre[0])
         ll = log_loss(pre[1], pre[0])
@@ -179,7 +182,6 @@ def run_exp(model_args, data_args, training_args):
     fp = f'bs_{TOTAL_BATCH_SIZE}_g_{training_args.gradient_accumulation_steps}_lr_{training_args.learning_rate}_ep_{training_args.num_train_epochs}'
     training_args.output_dir = os.path.join(training_args.output_dir, fp)
     training_args.logging_dir = os.path.join(training_args.output_dir, 'logs')
-
     # Initialize the Trainer
     trainer = Trainer(
         model=model,
