@@ -4,6 +4,7 @@ import json
 import os
 import fire
 import ast
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from typing import List, Dict, Any, Union, Optional
 from functools import partial
@@ -154,7 +155,7 @@ def long_thought_rollout_test(collected_data: List[Dict], output_file: str):
             max_tokens=4096,
             is_chat=True,
             vllm_config=vLLMConfig(
-                tensor_parallel_size=1,
+                tensor_parallel_size=4,
                 max_model_len=4096,
                 # host='localhost',
                 # port=8000,
@@ -163,44 +164,57 @@ def long_thought_rollout_test(collected_data: List[Dict], output_file: str):
         )
     )
     # vllm_wrapped_api.max_parallel_num = 8
-    vllm_wrapped_model.max_parallel_num = 4
+    vllm_wrapped_model.max_parallel_num = 8
     n_samples = 8
     for idx, data in enumerate(tqdm(collected_data[start_idx:]), start=start_idx):
         question, input_output, completions = data["question"], data["input_output"], data["completions"]
+        try:
+            input_output = json.loads(input_output)
+        except Exception:
+            pass
         prompt = data["prompt"]["content"]
         k_samples_rollout_func = partial(
             rollout_on_state, vllm_wrapped_model, rollout_num=n_samples, prompt=prompt
         )
         dummy_rollout_solutions = [None] * n_samples
         all_completions_k_samples_and_tests = []
+        completions_k_samples = []
         for completion in completions:
             code_block_tag = '```python'
-            prefix_thought, _ = completion.split(code_block_tag)
+            splits = completion.split(code_block_tag)
+            prefix_thought = None
+            if isinstance(splits, list) and len(splits) > 1:
+                prefix_thought = splits[0]
             if not prefix_thought:
                 all_completions_k_samples_and_tests.append(
                     postprocess_solutions_and_cases(dummy_rollout_solutions, input_output)
                 ) # no prefix thought
                 continue
             prefix_thought += code_block_tag + '\n'
-            # breakpoint()
+
             rollout_solutions = k_samples_rollout_func(
                 prefix=prefix_thought
             )
-            breakpoint()
-            rollout_solutions = [code_block_tag + '\n' + sol for sol in rollout_solutions]
-            all_completions_k_samples_and_tests.append(
-                postprocess_solutions_and_cases(rollout_solutions, input_output)
-            )
 
-        completions_k_samples = []
-        for (code_generations, updated_test_cases) in all_completions_k_samples_and_tests:
+            rollout_solutions = [code_block_tag + '\n' + sol for sol in rollout_solutions]
+            # all_completions_k_samples_and_tests.append(
+            #     postprocess_solutions_and_cases(rollout_solutions, input_output)
+            # )
+            code_generations, updated_test_cases = postprocess_solutions_and_cases(rollout_solutions, input_output)
             results = eval_generations_parallel(code_generations, updated_test_cases, debug=False, n_cases=100)
             _curr_k_samples = []
             for pass_status in results.values():
                 _curr_k_samples.append(pass_status)
             completions_k_samples.append(_curr_k_samples)
-            breakpoint()
-        
+            # breakpoint()
+        # completions_k_samples = []
+        # for (code_generations, updated_test_cases) in all_completions_k_samples_and_tests:
+        #     results = eval_generations_parallel(code_generations, updated_test_cases, debug=False, n_cases=100)
+        #     _curr_k_samples = []
+        #     for pass_status in results.values():
+        #         _curr_k_samples.append(pass_status)
+        #     completions_k_samples.append(_curr_k_samples)
+        # breakpoint()
         tested_data = {
             "question": question,
             "input_output": input_output,
@@ -220,7 +234,6 @@ def main(search_dir: str):
         output_file = os.path.join(search_dir, f"{file_name}_rollout_test{file_extension}")
 
         long_thought_rollout_test(data_block['data'], output_file)
-
 
 if __name__ == '__main__':
     fire.Fire(main)

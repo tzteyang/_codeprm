@@ -240,7 +240,7 @@ def eval_generations_parallel(
         (generation, test_case, debug, n_cases) for generation, test_case in zip(generations, test_cases)
     ]
 
-    n_cores = max(1, min(mp.cpu_count() - 2, 8, len(generations)))
+    n_cores = max(1, min(mp.cpu_count() - 2, len(generations) * 2))
     with mp.Pool(n_cores) as pool:
         eval_results = pool.map(parallel_worker, eval_args)
     
