@@ -221,9 +221,10 @@ class vLLM(BaseLLM):
         if self.config is None:
             raise ValueError('vLLM config is required for vLLM model')
         self.tensor_parallel_size = getattr(self.config, 'tensor_parallel_size', 1)
+        self.max_model_len = getattr(self.config, 'max_model_len', 8192)
 
         print(f"Loading vLLM model '{self.model_name}'...")
-        self.llm = LLM(self.model_name, tensor_parallel_size=self.tensor_parallel_size)
+        self.llm = LLM(self.model_name, tensor_parallel_size=self.tensor_parallel_size, max_model_len=self.max_model_len)
         print("vLLM model loaded successfully.")
 
         self.tokenizer = self.llm.get_tokenizer()

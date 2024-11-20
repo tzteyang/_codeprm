@@ -9,29 +9,31 @@ model_params:
   # model_name: "gpt-4o-mini"
   
   # vllm
-  # model_type: "vllm"
-  model_type: "vllm_server"
-  model_name: "/root/autodl-tmp/projects/models/Qwen2.5-Coder-32B-Instruct" # model path
+  model_type: "vllm"
+  # model_type: "vllm_server"
+  model_name: "/root/autodl-tmp/models/Qwen2.5-Coder-32B-Instruct" # model path
   
   temperature: 1.0
   max_tokens: 8192
   # top_p: 0.8
-  # top_k: 20
-  repetition_penalty: 1.05
+  # extra_body:
+    # top_k: 20
+    # repetition_penalty: 1.05
   # max_completion_tokens: 4096
 
   is_chat: True
 
   # config for vllm
   vllm_config:
-    tensor_parrallel_size: 2
-    host: "localhost"
-    port: 8000
-    api_key: "EMPTY"
+    tensor_parallel_size: 2
+    max_model_len: 4096
+    # host: "localhost"
+    # port: 8000
+    # api_key: "EMPTY"
 
 
 search_algorithm_params:
-    c_puct: 0.25
+    c_puct: 0.35
     alpha: 0.5
     beta: 0.9 
     length_scale: 500

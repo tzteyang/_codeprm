@@ -205,6 +205,7 @@ class CodeOmegaPRM:
 
         # check each rollout's correctness
         code_generations, extended_test_cases = postprocess_solutions_and_cases(k_rollout_solutions, self.code_test_cases)
+        #TODO check num of status does not match num of rollouts
         generation_w_status = eval_generations_parallel(code_generations, extended_test_cases, debug=False, n_cases=100)
         for solution, (code_gen, code_status) in zip(
             k_rollout_solutions if prefix_duplicate_k_solution_rollouts_steps is None else prefix_duplicate_k_solution_rollouts_steps, 
@@ -216,8 +217,12 @@ class CodeOmegaPRM:
             else:
                 incorrect_rollouts.append(solution)
                 state.add_incorrect_rollout(solution)
-
         # Update total rollouts and correct rollouts
+        valid_rollouts_num = len(generation_w_status)
+        logger.debug(f'Rollout Solutions: {len(k_rollout_solutions)}')
+        logger.debug(f'Code Generations: {len(code_generations)}')
+        logger.debug(f'Valid Rollouts: {valid_rollouts_num}')
+
         state.total_rollouts += self.k
         state.correct_rollouts += c
         state.MC = state.correct_rollouts / state.total_rollouts if state.total_rollouts > 0 else 0
