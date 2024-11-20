@@ -75,6 +75,8 @@ def get_process_rewards(model: AutoModelForCausalLM,
             raise ValueError("The `completed_prefixes` argument must be a list of strings if `prompts` is a string.")
         prompts = [prompts]
         completed_processes = [completed_processes]
+    if isinstance(prompts, list) and isinstance(completed_processes[0], str):
+        raise ValueError("The `completed_prefixes` argument must be a list of lists if `prompts` is a list.")
     if len(prompts) != len(completed_processes):
         raise ValueError("The number of prompts must match the number of completed prefixes in order.")
 
@@ -126,9 +128,13 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     problem = 'Given some positive integers, I wish to print the integers such that all take up the same width by adding a minimum number of leading zeroes. No leading zeroes shall be added to the largest integer.\n\nFor example, given `1, 23, 2, 17, 102`, I wish to print out these numbers as follows:\n\n```python\n001\n023\n002\n017\n102\n```\n\nWrite a function `print_nums(n1, n2, n3, ...)` that takes a variable number of arguments and returns the string to be printed out.'
-    prompt = CODEPRM_PROMPT.format(question=problem)
+    prompt = [
+        CODEPRM_PROMPT.format(question=problem),
+        problem
+    ]
     examples = [
-        "Step 1: <Action 1> Defining Function Structures Using pseudocode\nWe start by defining the structure of our solution. We need a function `reorder` that takes two integers `N` and `M`, and returns a numpy array with two sub-arrays. Each sub-array will contain numbers in the specified ranges and will be rotated `M` times.\n\n[Pseudo Start]\n```\nFunction reorder(N, M):\n    Calculate half of N\n    Create the first sub-array with numbers in the range [0, N/2)\n    Create the second sub-array with numbers in the range [N/2, N)\n    Rotate the first sub-array M times\n    Rotate the second sub-array M times\n    Combine the two sub-arrays into a numpy array\n    Return the combined numpy array\n[Pseudo End]\n```"
+        ["Step 1: <Action 1> Defining Function Structures Using pseudocode\nWe start by defining the structure of our solution. We need a function `reorder` that takes two integers `N` and `M`, and returns a numpy array with two sub-arrays. Each sub-array will contain numbers in the specified ranges and will be rotated `M` times.\n\n[Pseudo Start]\n```\nFunction reorder(N, M):\n    Calculate half of N\n    Create the first sub-array with numbers in the range [0, N/2)\n    Create the second sub-array with numbers in the range [N/2, N)\n    Rotate the first sub-array M times\n    Rotate the second sub-array M times\n    Combine the two sub-arrays into a numpy array\n    Return the combined numpy array\n[Pseudo End]\n```"],
+        ["Step 1: <Action 1> Defining Function Structures Using pseudocode\nWe start by defining the structure of our solution. We need a function `reorder` that takes two integers `N` and `M`, and returns a numpy array with two sub-arrays. Each sub-array will contain numbers in the specified ranges and will be rotated `M` times.\n\n[Pseudo Start]\n```\nFunction reorder(N, M):\n    Calculate half of N\n    Create the first sub-array with numbers in the range [0, N/2)\n    Create the second sub-array with numbers in the range [N/2, N)\n    Rotate the first sub-array M times\n    Rotate the second sub-array M times\n    Combine the two sub-arrays into a numpy array\n    Return the combined numpy array\n[Pseudo End]\n```"]
     ]
 
     get_process_rewards(model, tokenizer, prompt, examples, 'chat_completion', 'token_logits')
