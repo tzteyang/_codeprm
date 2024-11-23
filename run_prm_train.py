@@ -30,6 +30,10 @@ class DataTrainingArguments:
     data_path: str = field(
         metadata={"help": "Path to dataset", "required": True}
     )
+    use_soft_label: bool = field(
+        default=False,
+        metadata={"help": "Whether to use soft labels for prm training"}
+    )
     server: str = field(
         default="1",
         metadata={"help": "Server configuration"}

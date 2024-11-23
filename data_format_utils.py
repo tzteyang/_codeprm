@@ -311,6 +311,7 @@ class CodeOmegaPRM:
     def to_prm_train_format(self,
                             data_path: Optional[str],
                             output_file: Optional[str] = None,
+                            use_hard_label: bool = True,
                             threshold: float = 0.5) -> None:
         with open(data_path, 'r', encoding='utf-8') as f:
             steps_data = json.load(f)
@@ -323,12 +324,15 @@ class CodeOmegaPRM:
                 if solution_steps.get("has_final_step", None) is None:
                     continue
                 response_steps = solution_steps["solution_prefix"]
-                label = "positive" if solution_steps["mc_value"] >= threshold else "negative"
+                if use_hard_label:
+                    label = "positive" if solution_steps["mc_value"] >= threshold else "negative"
+                else: # keep mc_value as label for soft label setting
+                    label = solution_steps["mc_value"]
                 _temp_data.append({
                     "prompt": prompt,
                     "response": response_steps,
                     "has_final_step": solution_steps["has_final_step"],
-                    "label": [label]
+                    "label": [label] # make sure label is a list
                 })
             prm_raw_data.extend(_temp_data)
         
